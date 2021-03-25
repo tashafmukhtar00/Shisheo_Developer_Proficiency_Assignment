@@ -1,5 +1,6 @@
 package com.tashi.shisheo_developer_proficiency_assignment.ui.fragments
 
+import android.Manifest
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Build
@@ -24,6 +25,12 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.net.PlacesClient
+import com.karumi.dexter.Dexter
+import com.karumi.dexter.PermissionToken
+import com.karumi.dexter.listener.PermissionDeniedResponse
+import com.karumi.dexter.listener.PermissionGrantedResponse
+import com.karumi.dexter.listener.PermissionRequest
+import com.karumi.dexter.listener.single.PermissionListener
 import com.tashi.shisheo_developer_proficiency_assignment.R
 import com.tashi.shisheo_developer_proficiency_assignment.ui.common.Common
 import com.tashi.shisheo_developer_proficiency_assignment.ui.model.MyPlaces
@@ -33,7 +40,7 @@ import retrofit2.Response
 import javax.security.auth.callback.Callback
 
 
-class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
+class RestaurantLocationFragment : Fragment(), OnMapReadyCallback, PermissionListener {
 
     private lateinit var myPlacesService: IGoogleApiService
     private lateinit var restButton: Button
@@ -76,6 +83,11 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
             nearbyRestaurants()
         }
 
+
+        Dexter.withActivity(activity)
+            .withPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+            .withListener(this)
+            .check()
 
         // inti places api service
         myPlacesService = Common.googleApiService
@@ -228,12 +240,11 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
                         locationRequest,
                         locationCallback,
                         Looper.myLooper()
-
-
                     )
-                    loadLocationData()
-                }
+                    //      loadLocationData()
 
+                }
+                return
 
             } else {
                 Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
@@ -365,6 +376,21 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
 
         //.append("&keyword=cruise")
 
+    }
+
+    override fun onPermissionGranted(response: PermissionGrantedResponse?) {
+        loadLocationData()
+    }
+
+    override fun onPermissionDenied(response: PermissionDeniedResponse?) {
+        TODO("Not yet implemented")
+    }
+
+    override fun onPermissionRationaleShouldBeShown(
+        permission: PermissionRequest?,
+        token: PermissionToken?
+    ) {
+        TODO("Not yet implemented")
     }
 
 
