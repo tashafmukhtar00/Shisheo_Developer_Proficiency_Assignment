@@ -5,9 +5,11 @@ import android.location.Location
 import android.os.Build
 import android.os.Bundle
 import android.os.Looper
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -23,9 +25,18 @@ import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.net.PlacesClient
 import com.tashi.shisheo_developer_proficiency_assignment.R
+import com.tashi.shisheo_developer_proficiency_assignment.ui.common.Common
+import com.tashi.shisheo_developer_proficiency_assignment.ui.model.MyPlaces
+import com.tashi.shisheo_developer_proficiency_assignment.ui.remote.IGoogleApiService
+import retrofit2.Call
+import retrofit2.Response
+import javax.security.auth.callback.Callback
 
 
 class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
+
+    private lateinit var myPlacesService: IGoogleApiService
+    private lateinit var restButton: Button
 
     companion object {
         private const val MY_PERMISSION_CODE: Int = 1
@@ -50,6 +61,9 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
     private lateinit var googleMap: GoogleMap
     private lateinit var mapView: MapView
 
+
+    internal lateinit var currentPlace: MyPlaces
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -57,8 +71,25 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
         // Inflate the layout for this fragment
         val view = inflater.inflate(R.layout.fragment_restaurant_location, container, false)
         mapView = view.findViewById(R.id.map_view)
+        restButton = view.findViewById(R.id.button_resturants)
+        restButton.setOnClickListener {
+            nearbyRestaurants()
+        }
 
 
+        // inti places api service
+        myPlacesService = Common.googleApiService
+
+        loadLocationData()
+
+
+
+
+
+        return view
+    }
+
+    private fun loadLocationData() {
         if (Build.VERSION.SDK_INT > Build.VERSION_CODES.M)
 
 
@@ -74,7 +105,11 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
                     locationRequest,
                     locationCallback,
                     Looper.myLooper()
+
+
                 )
+
+
             } else {
 
                 buildLocationRequest()
@@ -90,9 +125,6 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
                 )
 
             }
-
-
-        return view
     }
 
     private fun buildLocationCallback() {
@@ -123,6 +155,8 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
 
 
         }
+
+
     }
 
     private fun buildLocationRequest() {
@@ -148,12 +182,11 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
                     activity!!,
                     android.Manifest.permission.ACCESS_FINE_LOCATION
                 )
+            ) ActivityCompat.requestPermissions(
+                activity!!,
+                arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+                MY_PERMISSION_CODE
             )
-                ActivityCompat.requestPermissions(
-                    activity!!, arrayOf(
-                        android.Manifest.permission.ACCESS_FINE_LOCATION
-                    ), MY_PERMISSION_CODE
-                )
             else
                 ActivityCompat.requestPermissions(
                     activity!!, arrayOf(
@@ -177,27 +210,30 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         when (requestCode) {
-            MY_PERMISSION_CODE -> if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            MY_PERMISSION_CODE -> if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 if (ContextCompat.checkSelfPermission(
                         activity!!,
                         android.Manifest.permission.ACCESS_FINE_LOCATION
                     ) == PackageManager.PERMISSION_GRANTED
-                )
-                    if (checkLocationPermission())
-                        googleMap.isMyLocationEnabled = true
+                ) {
+                    googleMap.isMyLocationEnabled = true
+
+                    buildLocationRequest()
+                    buildLocationCallback()
 
 
-                buildLocationRequest()
-                buildLocationCallback()
+                    fusedLocationProviderClient =
+                        LocationServices.getFusedLocationProviderClient(context!!)
+                    fusedLocationProviderClient.requestLocationUpdates(
+                        locationRequest,
+                        locationCallback,
+                        Looper.myLooper()
 
 
-                fusedLocationProviderClient =
-                    LocationServices.getFusedLocationProviderClient(context!!)
-                fusedLocationProviderClient.requestLocationUpdates(
-                    locationRequest,
-                    locationCallback,
-                    Looper.myLooper()
-                )
+                    )
+                    loadLocationData()
+                }
+
 
             } else {
                 Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
@@ -226,13 +262,17 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             googleMap.isMyLocationEnabled = true
+
+
         } else {
-            googleMap.isMyLocationEnabled = true
+            //    googleMap.isMyLocationEnabled = true
         }
 
         // enable zoom control
 
         googleMap.uiSettings.isZoomControlsEnabled = true
+
+
     }
 
 
@@ -244,7 +284,88 @@ class RestaurantLocationFragment : Fragment(), OnMapReadyCallback {
 
     private fun nearbyRestaurants() {
 
+        // clear all marker on maps
+
+
+        //    googleMap.clear()
+
+
+        val url = getUrl(latitude, longitude, "restaurant")
+
+        Toast.makeText(context, "" + latitude, Toast.LENGTH_SHORT).show()
+        myPlacesService.getNearbyPlaces(url).enqueue(object : Callback,
+            retrofit2.Callback<MyPlaces> {
+            override fun onResponse(call: Call<MyPlaces>, response: Response<MyPlaces>) {
+
+                currentPlace = response.body()!!
+
+//                Toast.makeText(context, "" + response.body(), Toast.LENGTH_SHORT).show()
+
+                for (i in 0 until response.body()!!.results.size) {
+
+                    val googlePlaces = response.body()!!.results[i]
+
+                    val lat = googlePlaces.geometry.location.lat
+                    val lng = googlePlaces.geometry.location.lng
+                    //  Toast.makeText(context, "" +lat, Toast.LENGTH_SHORT).show()
+                    val placeName = googlePlaces.name
+
+                    // Toast.makeText(context, "" +placeName, Toast.LENGTH_SHORT).show()
+                    val latLng = LatLng(lat, lng)
+                    //  Toast.makeText(context, "" + latLng +placeName, Toast.LENGTH_SHORT).show()
+
+
+                    val markerOptions = MarkerOptions()
+                    markerOptions.position(latLng)
+                    markerOptions.title(placeName)
+                    markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
+
+
+                    markerOptions.snippet(i.toString())
+
+                    // add marker to map
+
+                    googleMap.addMarker(markerOptions)
+
+
+                    googleMap.moveCamera(CameraUpdateFactory.newLatLng(latLng))
+                    googleMap.animateCamera(
+                        CameraUpdateFactory.zoomTo(13f)
+                    )
+
+                }
+
+
+            }
+
+            override fun onFailure(call: Call<MyPlaces>, t: Throwable) {
+
+                Toast.makeText(context, "Failed to load places", Toast.LENGTH_SHORT).show()
+            }
+
+        })
+
 
     }
+
+    private fun getUrl(latitude: Double, longitude: Double, placeType: String): String {
+
+        val googlePlaceUrl =
+            StringBuilder("https://maps.googleapis.com/maps/api/place/nearbysearch/json")
+                .append("?location=$latitude,$longitude")
+                .append("&rankby=distance")
+
+                .append("&type=$placeType")
+                .append("&key=AIzaSyDQMnCTH0Q3nWz6juS6wFYyjaHAgtaRGu0")
+
+        Log.d("URL", "getUrl: $googlePlaceUrl")
+
+
+        return googlePlaceUrl.toString()
+
+        //.append("&keyword=cruise")
+
+    }
+
 
 }
